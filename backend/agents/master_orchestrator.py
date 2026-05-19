@@ -1,4 +1,5 @@
 import os
+import time
 import google.generativeai as genai
 from dotenv import load_dotenv
 
@@ -21,6 +22,12 @@ class MasterOrchestrator:
                 
         self.current_key_index = 0
         self.model = None
+        
+        # Cache layer for API savings and rate-limit prevention
+        self._last_anomalies = None
+        self._last_insight = None
+        self._last_insight_time = 0
+        
         self._initialize_model()
 
     def _initialize_model(self) -> bool:
@@ -80,31 +87,70 @@ class MasterOrchestrator:
         status = anomaly_data.get("status", "error")
         total_pods = anomaly_data.get("total_pods_analyzed", 0)
         anomalies = anomaly_data.get("anomalies", [])
+        storage_anoms = anomaly_data.get("storage_anomalies", [])
+        network_anoms = anomaly_data.get("network_anomalies", [])
+        predictions = anomaly_data.get("predictions", [])
+        scaling_reqs = anomaly_data.get("scaling_requirements", [])
+        storage_correlations = anomaly_data.get("storage_correlations", [])
 
         if status == "error":
             return "The AI Orchestrator cannot evaluate cluster health because telemetry data from Prometheus is currently unavailable."
 
-        if len(anomalies) == 0:
-            prompt = f"""
-            You are an expert Kubernetes Site Reliability Engineer (SRE) and AI Agent. 
-            You just analyzed {total_pods} pods using an Isolation Forest ML model. No anomalies were found. 
-            Provide a very brief 2-sentence confirmation to the human operator that the cluster is healthy and resource utilization is normal.
-            """
-        else:
-            anomaly_details = "\n".join([f"- Pod: {a['pod']} (CPU Rate: {a['cpu_usage_core_rate']}, Memory: {a['memory_usage_bytes']} bytes)" for a in anomalies])
-            prompt = f"""
-            You are an expert Kubernetes Site Reliability Engineer (SRE) and AI Agent.
-            You just analyzed {total_pods} pods and found {len(anomalies)} critical anomalies using your Isolation Forest model.
-            
-            Here is the raw data for the anomalous pods:
-            {anomaly_details}
-            
-            Provide a concise, 3-sentence professional analysis for the dashboard. 
-            Explain what this might mean (e.g. memory leak, CPU spike, infinite loop) and recommend exactly what the human operator should do next to investigate or mitigate the issue.
-            Do not use markdown bolding in your response, keep it as plain text.
-            """
+        # OPTIMIZATION 1: If there are zero anomalies and no storage/network alerts, return a premium static summary.
+        if len(anomalies) == 0 and len(storage_anoms) == 0 and len(network_anoms) == 0:
+            return f"Cluster is operating within normal baseline limits. The Isolation Forest ML model analyzed all {total_pods} active pods/processes and detected no resource utilization anomalies. Network and Storage paths remain stable."
 
-        return self._call_gemini_with_fallback(prompt)
+        # OPTIMIZATION 2: Caching layer for active anomalies.
+        current_anomaly_signatures = sorted([a.get('pod', '') for a in anomalies]) + sorted([s.get('entity', '') for s in storage_anoms])
+        
+        now = time.time()
+        if (self._last_anomalies == current_anomaly_signatures and 
+            self._last_insight and 
+            (now - self._last_insight_time) < 60):
+            print("Returning cached SRE anomaly insight to save API quota...")
+            return self._last_insight
+
+        # Otherwise, fetch a new dynamic SRE report from Gemini
+        anomaly_details = "\n".join([f"- Pod: {a['pod']} (CPU Rate: {a['cpu_usage_core_rate']}, Memory: {a['memory_usage_bytes']} bytes)" for a in anomalies])
+        storage_details = "\n".join([f"- Storage bottleneck: {s['message']} (Type: {s['type']}, Severity: {s['severity']})" for s in storage_anoms])
+        network_details = "\n".join([f"- Network anomaly: {n['message']} (Link: {n['flow']})" for n in network_anoms])
+        prediction_details = "\n".join([f"- Projected Crash Risk for {p['pod']}: {int(p['failure_probability']*100)}% (Indicators: {', '.join(p['leading_indicators'])})" for p in predictions])
+        scaling_details = "\n".join([f"- Recommendation: {sr['action_details']}" for sr in scaling_reqs])
+
+        prompt = f"""
+        You are an expert Kubernetes Site Reliability Engineer (SRE) and AI Agent.
+        You analyzed the cluster state and detected resources anomalies, storage bottlenecks, network anomalies, and forecasting failure models.
+        
+        Live Metric Indicators:
+        Anomalous Pods (ML Outliers):
+        {anomaly_details if anomalies else 'None detected'}
+        
+        Storage Bottlenecks:
+        {storage_details if storage_anoms else 'None detected'}
+        
+        Network Anomalies:
+        {network_details if network_anoms else 'None detected'}
+        
+        Failure Projections (1m/5m regressions):
+        {prediction_details if predictions else 'None detected'}
+        
+        Autoscaling Actions:
+        {scaling_details if scaling_reqs else 'None required'}
+        
+        Provide a concise, 3-sentence professional Root Cause Analysis (RCA) and mitigation plan for the dashboard.
+        Correlate metrics (e.g. if a memory leak is projected or storage latency is high, explain the cascading impact) and advise exactly what the human operator should do.
+        Do not use markdown bolding in your response, keep it as plain text.
+        """
+
+        insight = self._call_gemini_with_fallback(prompt)
+        
+        # Cache this new insight if it generated successfully
+        if "failed" not in insight.lower() and "offline" not in insight.lower():
+            self._last_anomalies = current_anomaly_signatures
+            self._last_insight = insight
+            self._last_insight_time = now
+
+        return insight
 
     def chat_with_assistant(self, user_message: str, cluster_context: dict) -> str:
         """
@@ -115,20 +161,23 @@ class MasterOrchestrator:
             
         anomalies = cluster_context.get('anomalies', [])
         logs = cluster_context.get('log_keywords', [])
+        storage_anoms = cluster_context.get('storage_anomalies', [])
+        network_anoms = cluster_context.get('network_anomalies', [])
         
         prompt = f"""
         You are 'Kube AI', an advanced AI-powered Kubernetes Intelligence conversational assistant.
         The user is asking you a question about their live Kubernetes cluster.
         
-        Current Live Cluster Context (gathered from your ML Agents):
-        - Anomalous Pods Detected: {anomalies if anomalies else 'None'}
-        - Dominant NLP Error Patterns in Logs: {logs if logs else 'None'}
+        Current Live Cluster Context (gathered from all active ML, Log, Network, Storage, and Forecasting Agents):
+        - Anomalous Pods: {anomalies if anomalies else 'None'}
+        - NLP Log Error Patterns: {logs if logs else 'None'}
+        - Storage Bottlenecks: {storage_anoms if storage_anoms else 'None'}
+        - Network Anomalies: {network_anoms if network_anoms else 'None'}
         
         User's Question: "{user_message}"
         
         Answer the question professionally, concisely, and accurately based ONLY on the provided context.
-        If the user asks "Which pod caused the CPU spike?", look at the Anomalous Pods list.
-        If they ask about errors, look at the NLP Log Patterns.
+        If the user asks about network congestion, storage leaks, or process spikes, check the corresponding context fields.
         Keep the answer to 2 or 3 short sentences. Do not use markdown bolding.
         """
         return self._call_gemini_with_fallback(prompt)
