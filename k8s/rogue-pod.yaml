@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rogue-service
+  namespace: test-apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rogue-service
+  template:
+    metadata:
+      labels:
+        app: rogue-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
+    spec:
+      containers:
+      - name: cpu-memory-stress
+        # vish/stress is a classic docker image for generating synthetic load
+        image: vish/stress
+        args:
+        - -cpus
+        - "1"
+        - -mem-total
+        - "250Mi"
+        - -mem-alloc-size
+        - "10Mi"
+        - -mem-alloc-sleep
+        - "1s"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m" # This will cause a massive relative spike compared to our baseline test apps!
+            memory: "512Mi"

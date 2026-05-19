@@ -1,0 +1,27 @@
+# Dependency Directories
+node_modules/
+frontend/node_modules/
+backend/venv/
+venv/
+dist/
+frontend/dist/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# Environment Files
+.env
+backend/.env
+

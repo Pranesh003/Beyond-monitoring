@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+prometheus-api-client
+scikit-learn
+networkx
+google-generativeai
+python-dotenv
+psutil
