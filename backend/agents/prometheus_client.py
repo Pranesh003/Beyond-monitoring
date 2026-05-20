@@ -13,6 +13,8 @@ PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://localhost:30000")
 _sys = SystemMetricsCollector()   # singleton
 
 
+ONLY_CLUSTER_MONITORING = os.getenv("ONLY_CLUSTER_MONITORING", "false").lower() in ("true", "1", "yes")
+
 class PrometheusConnector:
     def __init__(self, base_url: str = PROMETHEUS_URL):
         self.base_url = base_url
@@ -40,13 +42,16 @@ class PrometheusConnector:
     def get_pod_cpu_usage(self) -> list:
         if self.is_up and self._prom:
             query = ('sum(rate(container_cpu_usage_seconds_total'
-                     '{namespace="test-apps",container!=""}[2m])) by (pod)')
+                     '{namespace="test-apps"}[2m])) by (pod)')
             try:
                 res = self._prom.custom_query(query)
                 if res:
                     return res
             except Exception as e:
-                print(f"Prometheus unreachable: {e}. Using live system data.")
+                print(f"Prometheus query failed: {e}.")
+
+        if ONLY_CLUSTER_MONITORING:
+            return []
 
         # ── Real live data from this machine ──────────────────────────────
         return _sys.get_pod_cpu_usage()
@@ -54,12 +59,15 @@ class PrometheusConnector:
     def get_pod_memory_usage(self) -> list:
         if self.is_up and self._prom:
             query = ('sum(container_memory_usage_bytes'
-                     '{namespace="test-apps",container!=""}) by (pod)')
+                     '{namespace="test-apps"}) by (pod)')
             try:
                 res = self._prom.custom_query(query)
                 if res:
                     return res
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Prometheus query failed: {e}.")
+
+        if ONLY_CLUSTER_MONITORING:
+            return []
 
         return _sys.get_pod_memory_usage()

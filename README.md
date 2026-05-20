@@ -205,10 +205,11 @@ This spawns a simulation pod that leaks memory and hogs CPU. The **ResourceAnoma
 
 ## 🎨 Visual Design Aesthetic
 
-The frontend React dashboard is built with a **Premium Dark-Theme Glassmorphism** design system:
-*   **Harmonious Color Palette**: Sleek neon gradients, rich deep backdrops (`rgba(15, 23, 42, 0.4)`), and glowing borders.
-*   **Micro-Animations**: Hover-triggered translations, animated status rings, and fluid network nodes.
-*   **Dynamic Data Visuals**: Auto-rendering Chart.js time-series plots and interactive Cytoscape network models that react instantly when containers are recycled.
+The frontend React dashboard is built with an elegant, custom-curated **Light-Theme Pastel Glassmorphism** design system and is fully optimized for fluid multi-viewport responsiveness:
+*   **Curated Color Palette**: Mapped to five custom-selected pastel tones (`#e27396` deep rose, `#ea9ab2` soft rose, `#efcfe3` pastel lilac, `#eaf2d7` lime cream, `#b3dee2` soft cyan) set against an ultra-premium warm-rose white canvas (`#fcfbfd`).
+*   **Advanced Responsiveness & Fluid Wrapping**: Side-by-side timeseries charts are optimized for vertical balance (`320px`), KPI metric cards wrap seamlessly using flex-grid mechanics, and layout structures automatically stack and scale from widescreen down to micro-mobile displays.
+*   **Transparent Dynamic Visuals**: Standardized high-contrast Cytoscape nodes and rolling Chart.js timeseries lines integrate a custom `hexToRgba` utility to render soft, translucent area gradients that enhance legibility without hiding background elements.
+*   **Immediate Cache Busting**: Bundled with production-grade Nginx `Cache-Control` headers for the main `index.html` file, ensuring any compiled static assets or visual upgrades load instantly upon browser refresh.
 
 ---
 

@@ -82,6 +82,7 @@ def get_anomalies():
     detection_result["predictions"] = predictions
     detection_result["scaling_requirements"] = scaling_reqs
     detection_result["storage_correlations"] = storage_correlations
+    detection_result["remediation_active"] = remediation_agent.active
     
     if detection_result.get("status") == "success":
         insight = master_orchestrator.generate_insight(detection_result)

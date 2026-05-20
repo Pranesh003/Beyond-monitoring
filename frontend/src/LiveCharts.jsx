@@ -13,12 +13,12 @@ Chart.register(
 
 // Colour palette per pod
 const POD_COLORS = {
-  'api-gateway':     { line: '#38bdf8', fill: 'rgba(56,189,248,0.15)' },
-  'user-service':    { line: '#a78bfa', fill: 'rgba(167,139,250,0.15)' },
-  'payment-service': { line: '#34d399', fill: 'rgba(52,211,153,0.15)' },
-  'rogue-pod':       { line: '#f87171', fill: 'rgba(248,113,113,0.18)' },
+  'api-gateway':     { line: '#b3dee2', fill: 'rgba(179,222,226,0.2)' },
+  'user-service':    { line: '#ea9ab2', fill: 'rgba(234,154,178,0.2)' },
+  'payment-service': { line: '#eaf2d7', fill: 'rgba(234,242,215,0.25)' },
+  'rogue-pod':       { line: '#e27396', fill: 'rgba(226,115,150,0.2)' },
 };
-const DEFAULT_COLOR = { line: '#94a3b8', fill: 'rgba(148,163,184,0.1)' };
+const DEFAULT_COLOR = { line: '#efcfe3', fill: 'rgba(239,207,227,0.15)' };
 
 function formatLabel(ts) {
   const d = new Date(ts);
@@ -74,12 +74,12 @@ export function RollingLineChart({ title, timeseries, metricKey, unit, formatVal
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: {
-            labels: { color: '#94a3b8', boxWidth: 10, font: { size: 10 } },
+            labels: { color: '#475569', boxWidth: 10, font: { size: 10 } },
           },
           tooltip: {
-            backgroundColor: 'rgba(15,23,42,0.9)',
-            titleColor: '#e2e8f0',
-            bodyColor: '#94a3b8',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            titleColor: '#ffffff',
+            bodyColor: '#cbd5e1',
             callbacks: {
               label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}${unit}`,
             },
@@ -88,12 +88,12 @@ export function RollingLineChart({ title, timeseries, metricKey, unit, formatVal
         scales: {
           x: {
             ticks: { color: '#475569', font: { size: 9 }, maxTicksLimit: 8 },
-            grid: { color: 'rgba(255,255,255,0.04)' },
+            grid: { color: 'rgba(15, 23, 42, 0.06)' },
           },
           y: {
             ticks: { color: '#475569', font: { size: 9 },
               callback: v => `${v}${unit}` },
-            grid: { color: 'rgba(255,255,255,0.04)' },
+            grid: { color: 'rgba(15, 23, 42, 0.06)' },
           },
         },
       },
@@ -107,7 +107,7 @@ export function RollingLineChart({ title, timeseries, metricKey, unit, formatVal
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <p style={{ color: '#94a3b8', fontSize: 11, marginBottom: 6, fontWeight: 600 }}>
+      <p style={{ color: '#475569', fontSize: 11, marginBottom: 6, fontWeight: 600 }}>
         {title}
       </p>
       <div style={{ flex: 1, minHeight: 0 }}>
@@ -115,6 +115,16 @@ export function RollingLineChart({ title, timeseries, metricKey, unit, formatVal
       </div>
     </div>
   );
+}
+
+function hexToRgba(hex, alpha) {
+  if (!hex) return 'rgba(0,0,0,0)';
+  if (hex.startsWith('rgb')) return hex;
+  const cleanHex = hex.replace('#', '');
+  const r = parseInt(cleanHex.substring(0, 2), 16);
+  const g = parseInt(cleanHex.substring(2, 4), 16);
+  const b = parseInt(cleanHex.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 // ── Sparkline (single pod, single metric) ────────────────────────────────────
@@ -141,7 +151,7 @@ export function Sparkline({ values, color }) {
         datasets: [{
           data: values,
           borderColor: color,
-          backgroundColor: color.replace(')', ', 0.15)').replace('rgb', 'rgba'),
+          backgroundColor: hexToRgba(color, 0.12),
           borderWidth: 1.5,
           pointRadius: 0,
           tension: 0.4,

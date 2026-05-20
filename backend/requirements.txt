@@ -10,3 +10,4 @@ psutil
 kubernetes
 requests
 numpy
+PyYAML

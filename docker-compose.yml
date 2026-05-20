@@ -9,16 +9,15 @@ services:
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - PORT=8000
+      - PROMETHEUS_URL=http://host.docker.internal:30000
+      - LOKI_URL=http://host.docker.internal:3100
+      - ONLY_CLUSTER_MONITORING=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - C:\Users\prane\.kube:/root/.kube
+      - C:\Users\prane\.minikube:/root/.minikube
     restart: unless-stopped
-    
-    # =========================================================================
-    # SRE TELEMETRY FLAGS FOR PHYSICAL MACHINE MONITORING:
-    # Remove the comments below to let Docker bypass standard namespaces 
-    # and monitor your actual physical host workstation!
-    # (Note: network_mode: host is fully supported on Linux and WSL2 backends)
-    # =========================================================================
-    pid: "host"
-    # network_mode: "host"
 
 
 

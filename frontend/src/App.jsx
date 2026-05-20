@@ -10,10 +10,10 @@ import { RollingLineChart, Sparkline } from './LiveCharts';
 const API = 'http://127.0.0.1:8000';
 
 const POD_LINE_COLORS = {
-  'api-gateway':     '#38bdf8',
-  'user-service':    '#a78bfa',
-  'payment-service': '#34d399',
-  'rogue-pod':       '#f87171',
+  'api-gateway':     '#b3dee2',
+  'user-service':    '#ea9ab2',
+  'payment-service': '#eaf2d7',
+  'rogue-pod':       '#e27396',
 };
 
 function AnimatedNumber({ value, decimals = 0 }) {
@@ -35,7 +35,7 @@ function AnimatedNumber({ value, decimals = 0 }) {
 }
 
 // ── Pod card with sparkline ──────────────────────────────────────────────────
-const DYNAMIC_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb7185', '#fcd34d', '#f472b6', '#2dd4bf', '#fb923c'];
+const DYNAMIC_COLORS = ['#b3dee2', '#ea9ab2', '#eaf2d7', '#efcfe3', '#e27396'];
 
 function getPodColor(pod) {
   if (POD_LINE_COLORS[pod]) return POD_LINE_COLORS[pod];
@@ -89,6 +89,18 @@ export default function App() {
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
+
+  // Remediation States
+  const [healingPods, setHealingPods] = useState({});
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
 
   // Chat
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -153,6 +165,11 @@ export default function App() {
   };
 
   const handleRemediate = async (podName) => {
+    if (healingPods[podName] === 'healing') return;
+    
+    setHealingPods(prev => ({ ...prev, [podName]: 'healing' }));
+    showToast(`Initiating auto-remediation for pod: ${podName}...`, 'info');
+    
     try {
       const res = await fetch(`${API}/api/v1/remediate`, {
         method: 'POST',
@@ -160,9 +177,41 @@ export default function App() {
         body: JSON.stringify({ pod_name: podName }),
       });
       const data = await res.json();
-      alert(`Auto-Remediation: ${data.message}`);
-      fetchAll();
-    } catch { alert('Failed to reach remediation agent.'); }
+      
+      if (res.ok && data.status === 'success') {
+        setHealingPods(prev => ({ ...prev, [podName]: 'success' }));
+        showToast(`Remediation succeeded: ${data.message}`, 'success');
+        
+        setTimeout(() => {
+          setHealingPods(prev => {
+            const next = { ...prev };
+            delete next[podName];
+            return next;
+          });
+          fetchAll();
+        }, 2500);
+      } else {
+        setHealingPods(prev => ({ ...prev, [podName]: 'error' }));
+        showToast(`Auto-remediation failed: ${data.message || 'Unknown error'}`, 'error');
+        setTimeout(() => {
+          setHealingPods(prev => {
+            const next = { ...prev };
+            delete next[podName];
+            return next;
+          });
+        }, 4000);
+      }
+    } catch (err) {
+      setHealingPods(prev => ({ ...prev, [podName]: 'error' }));
+      showToast('Connection error: Failed to reach the SRE Auto-Remediation agent.', 'error');
+      setTimeout(() => {
+        setHealingPods(prev => {
+          const next = { ...prev };
+          delete next[podName];
+          return next;
+        });
+      }, 4000);
+    }
   };
 
   const totalPods   = anomalyData?.total_pods_analyzed ?? overview?.total_pods ?? 4;
@@ -174,38 +223,38 @@ export default function App() {
     { 
       selector: 'node',               
       style: { 
-        'background-color': '#3b82f6', 
+        'background-color': '#b3dee2', 
         'label': 'data(label)', 
-        'color': '#cbd5e1', 
+        'color': '#2e1e24', 
         'font-size': '11px', 
         'font-weight': '600', 
         'text-valign': 'bottom', 
         'text-margin-y': 8,
         'width': 38, 
         'height': 38,
-        'text-background-opacity': 0.8,
-        'text-background-color': '#060d1a',
+        'text-background-opacity': 0.95,
+        'text-background-color': '#ffffff',
         'text-background-padding': '4px 6px',
         'text-background-shape': 'roundrectangle',
         'border-width': 2,
-        'border-color': '#1e293b'
+        'border-color': '#ea9ab2'
       } 
     },
     { 
       selector: 'edge',               
       style: { 
-        'width': 2.5, 
-        'line-color': '#475569', 
-        'target-arrow-color': '#475569', 
+        'width': 2.2, 
+        'line-color': '#e3c6d0', 
+        'target-arrow-color': '#e3c6d0', 
         'target-arrow-shape': 'triangle', 
         'curve-style': 'bezier',
-        'arrow-scale': 1.3
+        'arrow-scale': 1.2
       } 
     },
     { 
       selector: 'node[type="database"]', 
       style: { 
-        'background-color': '#8b5cf6', 
+        'background-color': '#ea9ab2', 
         'shape': 'barrel', 
         'width': 40, 
         'height': 40 
@@ -214,23 +263,24 @@ export default function App() {
     { 
       selector: 'node[type="ingress"]',  
       style: { 
-        'background-color': '#10b981', 
+        'background-color': '#eaf2d7', 
         'shape': 'diamond', 
         'width': 42, 
         'height': 42,
-        'border-color': '#047857'
+        'border-color': '#829b53'
       } 
     },
     { 
       selector: 'node[type="anomaly"]',  
       style: { 
-        'background-color': '#ef4444', 
+        'background-color': '#e27396', 
         'border-width': 2, 
-        'border-color': '#fca5a5', 
+        'border-color': '#ea9ab2', 
         'width': 44, 
         'height': 44,
-        'text-background-color': '#450a0a',
-        'text-background-opacity': 0.9
+        'color': '#7a223c',
+        'text-background-color': '#fdecef',
+        'text-background-opacity': 0.95
       } 
     },
   ];
@@ -256,21 +306,27 @@ export default function App() {
             </span>
           )}
           <span className="cluster-badge">minikube-dev</span>
+          {anomalyData && (
+            <span className={`remediation-badge ${anomalyData.remediation_active ? 'remediation-badge--active' : 'remediation-badge--offline'}`}>
+              <Zap size={10} className="remediation-badge__icon" />
+              Self-Heal: {anomalyData.remediation_active ? 'ACTIVE' : 'OFFLINE'}
+            </span>
+          )}
         </div>
       </nav>
 
       {/* ── KPI ROW ── */}
       <div className="kpi-row">
         <div className="kpi-card">
-          <Server size={16} className="kpi-icon" style={{ color: '#38bdf8' }} />
+          <Server size={16} className="kpi-icon" style={{ color: '#b3dee2' }} />
           <div>
             <p className="kpi-label">Nodes</p>
             <p className="kpi-value">3</p>
-            <p className="kpi-sub" style={{ color: '#34d399' }}>All Healthy</p>
+            <p className="kpi-sub" style={{ color: 'var(--success)' }}>All Healthy</p>
           </div>
         </div>
         <div className={`kpi-card ${!statusOk ? 'kpi-card--danger' : ''}`}>
-          <Database size={16} className="kpi-icon" style={{ color: '#a78bfa' }} />
+          <Database size={16} className="kpi-icon" style={{ color: '#ea9ab2' }} />
           <div>
             <p className="kpi-label">Pods Monitored</p>
             <p className="kpi-value"><AnimatedNumber value={totalPods} /></p>
@@ -280,7 +336,7 @@ export default function App() {
           </div>
         </div>
         <div className="kpi-card">
-          <Cpu size={16} className="kpi-icon" style={{ color: '#f97316' }} />
+          <Cpu size={16} className="kpi-icon" style={{ color: 'var(--primary)' }} />
           <div>
             <p className="kpi-label">Cluster CPU Rate</p>
             <p className="kpi-value">
@@ -291,7 +347,7 @@ export default function App() {
           </div>
         </div>
         <div className="kpi-card">
-          <HardDrive size={16} className="kpi-icon" style={{ color: '#fb7185' }} />
+          <HardDrive size={16} className="kpi-icon" style={{ color: '#ea9ab2' }} />
           <div>
             <p className="kpi-label">Cluster Memory</p>
             <p className="kpi-value">
@@ -302,10 +358,10 @@ export default function App() {
           </div>
         </div>
         <div className="kpi-card">
-          <TrendingUp size={16} className="kpi-icon" style={{ color: '#34d399' }} />
+          <TrendingUp size={16} className="kpi-icon" style={{ color: 'var(--success)' }} />
           <div>
             <p className="kpi-label">Anomaly Score</p>
-            <p className="kpi-value" style={{ color: statusOk ? '#34d399' : '#f87171' }}>
+            <p className="kpi-value" style={{ color: statusOk ? 'var(--success)' : 'var(--danger)' }}>
               {statusOk ? '0' : anomaliesCount}
             </p>
             <p className="kpi-sub">{statusOk ? 'All Clear' : 'Requires Attention'}</p>
@@ -360,37 +416,39 @@ export default function App() {
 
         {/* ── CENTER COLUMN ── */}
         <div className="col col--center">
-          {/* CPU Timeseries Chart */}
-          <section className="panel panel--chart">
-            <h2 className="panel__title"><Cpu size={14} /> CPU Usage — Live Rolling Window</h2>
-            <div className="chart-area">
-              {Object.keys(timeseries).length > 0
-                ? <RollingLineChart
-                    title="CPU Rate (millicores/sec)"
-                    timeseries={timeseries}
-                    metricKey="cpu"
-                    unit="mc"
-                  />
-                : <p className="muted-text animate-pulse">Waiting for metrics…</p>
-              }
-            </div>
-          </section>
+          <div className="charts-row">
+            {/* CPU Timeseries Chart */}
+            <section className="panel panel--chart">
+              <h2 className="panel__title"><Cpu size={14} /> CPU Usage — Live Rolling Window</h2>
+              <div className="chart-area">
+                {Object.keys(timeseries).length > 0
+                  ? <RollingLineChart
+                      title="CPU Rate (millicores/sec)"
+                      timeseries={timeseries}
+                      metricKey="cpu"
+                      unit="mc"
+                    />
+                  : <p className="muted-text animate-pulse">Waiting for metrics…</p>
+                }
+              </div>
+            </section>
 
-          {/* Memory Timeseries Chart */}
-          <section className="panel panel--chart">
-            <h2 className="panel__title"><HardDrive size={14} /> Memory Usage — Live Rolling Window</h2>
-            <div className="chart-area">
-              {Object.keys(timeseries).length > 0
-                ? <RollingLineChart
-                    title="Memory (MB)"
-                    timeseries={timeseries}
-                    metricKey="mem"
-                    unit="MB"
-                  />
-                : <p className="muted-text animate-pulse">Waiting for metrics…</p>
-              }
-            </div>
-          </section>
+            {/* Memory Timeseries Chart */}
+            <section className="panel panel--chart">
+              <h2 className="panel__title"><HardDrive size={14} /> Memory Usage — Live Rolling Window</h2>
+              <div className="chart-area">
+                {Object.keys(timeseries).length > 0
+                  ? <RollingLineChart
+                      title="Memory (MB)"
+                      timeseries={timeseries}
+                      metricKey="mem"
+                      unit="MB"
+                    />
+                  : <p className="muted-text animate-pulse">Waiting for metrics…</p>
+                }
+              </div>
+            </section>
+          </div>
 
           {/* Topology Graph - Moved down below charts */}
           <section className="panel panel--topo">
@@ -426,7 +484,7 @@ export default function App() {
           {/* Anomaly list with Auto-Heal */}
           {!statusOk && (
             <section className="panel panel--danger">
-              <h2 className="panel__title"><Zap size={14} style={{ color: '#f87171' }} /> Actionable Anomalies</h2>
+              <h2 className="panel__title"><Zap size={14} style={{ color: 'var(--danger)' }} /> Actionable Anomalies</h2>
               <div className="anomaly-list">
                 {anomalies.map((anom, i) => (
                   <div key={i} className="anomaly-card">
@@ -441,8 +499,32 @@ export default function App() {
                     </div>
                     <div className="anomaly-card__footer">
                       <p className="anomaly-reason"><ShieldAlert size={10} /> {anom.agent_reasoning}</p>
-                      <button className="heal-btn" onClick={() => handleRemediate(anom.pod)}>
-                        <Zap size={10} /> Auto-Heal
+                      <button 
+                        className={`heal-btn ${healingPods[anom.pod] ? `heal-btn--${healingPods[anom.pod]}` : ''}`}
+                        disabled={healingPods[anom.pod] !== undefined}
+                        onClick={() => handleRemediate(anom.pod)}
+                      >
+                        {healingPods[anom.pod] === 'healing' ? (
+                          <>
+                            <RefreshCw size={10} className="spin" />
+                            Healing...
+                          </>
+                        ) : healingPods[anom.pod] === 'success' ? (
+                          <>
+                            <CheckCircle size={10} />
+                            Healed!
+                          </>
+                        ) : healingPods[anom.pod] === 'error' ? (
+                          <>
+                            <X size={10} />
+                            Failed
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={10} />
+                            Auto-Heal
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -454,8 +536,8 @@ export default function App() {
           {/* Cluster status when healthy */}
           {statusOk && (
             <section className="panel panel--healthy">
-              <CheckCircle size={20} style={{ color: '#34d399' }} />
-              <p style={{ color: '#34d399', fontWeight: 600, marginTop: 8 }}>Cluster Healthy</p>
+              <CheckCircle size={20} style={{ color: 'var(--success)' }} />
+              <p style={{ color: 'var(--success)', fontWeight: 600, marginTop: 8 }}>Cluster Healthy</p>
               <p className="muted-text" style={{ fontSize: 11, marginTop: 4 }}>
                 All pods operating within baseline parameters.
               </p>
@@ -465,7 +547,7 @@ export default function App() {
           {/* Master AI Insight */}
           <section className={`panel panel--flex1 ${!statusOk ? 'panel--warning' : ''}`}>
             <h2 className="panel__title">
-              <ShieldAlert size={14} style={{ color: statusOk ? '#34d399' : '#fbbf24' }} />
+              <ShieldAlert size={14} style={{ color: statusOk ? 'var(--success)' : 'var(--warning)' }} />
               Master AI Insight
             </h2>
             <div className="insight-box">
@@ -512,6 +594,23 @@ export default function App() {
           onClick={() => setIsChatOpen(v => !v)}>
           {isChatOpen ? <X size={22} /> : <MessageSquare size={22} />}
         </button>
+      </div>
+
+      {/* ── TOAST NOTIFICATIONS ── */}
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className={`toast toast--${toast.type}`}>
+            <span className="toast-icon">
+              {toast.type === 'success' && <CheckCircle size={14} />}
+              {toast.type === 'error' && <X size={14} />}
+              {toast.type === 'info' && <Activity size={14} />}
+            </span>
+            <span className="toast-message">{toast.message}</span>
+            <button className="toast-close" onClick={() => setToasts(p => p.filter(t => t.id !== toast.id))}>
+              <X size={12} />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
