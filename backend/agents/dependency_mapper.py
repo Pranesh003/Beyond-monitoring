@@ -16,11 +16,23 @@ class DependencyMapper:
         cpu_raw = self.prom_client.get_pod_cpu_usage()
         pods = [item["metric"].get("pod", "unknown") for item in cpu_raw]
         
+        # Detect anomalies to highlight anomalous pods dynamically on the map
+        anomalous_pods = []
+        try:
+            from .anomaly_detector import ResourceAnomalyDetector
+            detector = ResourceAnomalyDetector()
+            detection_result = detector.analyze_current_state()
+            if isinstance(detection_result, dict) and detection_result.get("status") == "success":
+                anomalous_pods = [a["pod"] for a in detection_result.get("anomalies", [])]
+        except Exception as e:
+            print(f"Error checking anomalies in dependency mapper: {e}")
+        
         # Map out the host machine
         self.graph.add_node("localhost", type="ingress")
         
         for pod in pods:
-            self.graph.add_node(pod, type="service")
+            node_type = "anomaly" if pod in anomalous_pods else "service"
+            self.graph.add_node(pod, type=node_type)
             self.graph.add_edge("localhost", pod, weight=5)
         
         # Transform the NetworkX DiGraph into Cytoscape.js format for the frontend

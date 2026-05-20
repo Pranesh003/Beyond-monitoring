@@ -71,11 +71,11 @@ graph TD
 
 ## ⚡ Key Platform Features
 
-1.  **Dual-Mode Telemetry Failover**: Queries native Kubernetes metrics (via Prometheus and Grafana Loki) when deployed inside a cluster. If running locally on a developer workstation, the platform **automatically falls back to live host-level system metrics (`psutil`)**, ensuring zero-config local development.
+1.  **Dual-Mode Telemetry Failover & Instant Socket Probe**: Queries native Kubernetes metrics (via Prometheus and Grafana Loki) when deployed inside a cluster. The platform incorporates a **fast socket probe check (`_probe_prometheus`)** during initialization. If Prometheus is unreachable, it instantly falls back to live host-level system metrics (`psutil`) with zero latency, ensuring zero-config local development.
 2.  **Dynamic Machine Learning Baselines**: Employs an online `Isolation Forest` classification model. Rather than relying on rigid, static human-defined thresholds (e.g., "CPU > 80%"), the model dynamically establishes a mathematical cluster baseline and highlights anomalous outliers.
 3.  **Cascading NLP Failure Analysis**: Extracts error log streams and runs term frequency-inverse document frequency (`TF-IDF`) vectorization to mathematically cluster and pinpoint dominant error patterns.
-4.  **Resilient SRE Chat & Insight Engine**: Features an SRE chat assistant allowing engineers to query the live cluster state, backed by a **resilient API key fallback and dynamic rotation algorithm** to prevent rate-limit failures.
-5.  **Interactive Directed Network Mapping**: Computes high-fidelity topological directed graphs representing ingress vectors, highlighting failing container vertices in real-time.
+4.  **Resilient SRE Chat & Insight Engine with Local AI Fallback**: Features an SRE chat assistant allowing engineers to query the live cluster state, backed by a **resilient API key fallback and dynamic rotation algorithm**. If all LLM keys are exhausted, rate-limited, or not configured, it **automatically falls back to a rules-based local SRE engine**, ensuring 100% uptime offline.
+5.  **Interactive Directed Network Mapping with Dynamic Anomaly Highlighting**: Computes high-fidelity topological directed graphs representing ingress vectors, highlighting failing container vertices in real-time. Nodes are mapped using a **high-performance concentric layout** (centering the ingress gateway) and anomalous pods are styled with prominent warning borders and high-contrast red highlights.
 6.  **Closed-Loop Auto-Remediation**: Empowers the platform to self-heal. Operators can execute targeted self-healing scripts that either terminate rogue Kubernetes pods (letting replica sets spin up healthy containers) or safely terminate high-CPU host PIDs on local machines.
 
 ---
@@ -92,7 +92,7 @@ graph TD
 *   **Module**: `backend/agents/master_orchestrator.py`
 *   **Role**: Consolidates raw data from all agents to generate conversational SRE insights and drive the interactive chat dashboard.
 *   **Resilient API Key Fallback & Rotation System**:
-    To guarantee high availability and bypass API rate limits or quota boundaries, the Orchestrator implements an autonomous configuration fallback loops:
+    To guarantee high availability and bypass API rate limits or quota boundaries, the Orchestrator implements autonomous configuration fallback loops:
     *   It checks `.env` for `GEMINI_API_KEY` (primary) and `GEMINI_BACKUP_KEYS` (a comma-separated list of backup keys).
     *   It combines these into a list of candidate keys: `keys = [primary] + backup_keys`.
     *   All LLM calls (`generate_insight` and `chat_with_assistant`) are wrapped inside a retry loop (`_call_gemini_with_fallback`).
@@ -101,12 +101,17 @@ graph TD
         2. Steps to the next key index: `(current_index + 1) % len(all_keys)`.
         3. Invokes `genai.configure(api_key=new_key)` and recreates the `gemini-2.5-flash` model.
         4. Retries the generation loop up to $N$ times (where $N$ is the number of keys).
+*   **Local Offline Rule-Based SRE Engine**:
+    To prevent service degradation during complete LLM outages or rate-limits, it features a fallback SRE engine:
+    *   **Fallback Insights**: Automatically generates structured Root Cause Analysis (RCA) and mitigation paths by analyzing current telemetry context (CPU, memory, storage status, Loki logs).
+    *   **Interactive Fallback Chat**: Evaluates user messages locally and provides highly targeted diagnostics on system anomalies, PVC/disk path storage limits, loopback socket network drops, and error log frequencies.
 
 ### 3. DependencyMapper (Network Topology Grapher)
 *   **Module**: `backend/agents/dependency_mapper.py`
 *   **Role**: Maps relationships and communication vectors.
 *   **Implementation**: Utilizes `NetworkX` directed graphs (`nx.DiGraph`). It maps the network ingress point (`localhost`) and automatically dynamically draws directed edges connecting all active pods or processes.
-*   **Output format**: Serializes standard graphs to Cytoscape.js structure, exposing `elements` consisting of `nodes` (type ingress or service) and `edges` (weight-associated communication vectors).
+*   **Dynamic Anomaly Mapping**: Automatically queries the active `ResourceAnomalyDetector` in real-time. If a pod displays anomalous CPU or memory behavior, the mapper labels the node as an `"anomaly"`, allowing the frontend to style it with high-priority warnings.
+*   **Output format**: Serializes standard graphs to Cytoscape.js structure, exposing `elements` consisting of `nodes` (type ingress, service, or anomaly) and `edges` (weight-associated communication vectors).
 
 ### 4. LogIntelligenceAgent (NLP TF-IDF Log Pattern Clusterer)
 *   **Module**: `backend/agents/log_intelligence.py`

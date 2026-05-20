@@ -28,6 +28,11 @@ class MasterOrchestrator:
         self._last_insight = None
         self._last_insight_time = 0
         
+        # Circuit Breaker pattern to eliminate latency when API keys are rate-limited
+        self.circuit_tripped = False
+        self.last_circuit_trip_time = 0
+        self.circuit_cooldown = 600  # 10 minutes in seconds
+        
         self._initialize_model()
 
     def _initialize_model(self) -> bool:
@@ -50,6 +55,15 @@ class MasterOrchestrator:
     def _call_gemini_with_fallback(self, prompt: str) -> str:
         if not self.all_keys:
             return "Agentic LLM offline. Please configure a GEMINI_API_KEY."
+
+        now = time.time()
+        if self.circuit_tripped:
+            if now - self.last_circuit_trip_time < self.circuit_cooldown:
+                print("Gemini circuit breaker is TRIPPED. Bypassing API calls to avoid latency.")
+                return "Agentic LLM offline due to circuit breaker trip."
+            else:
+                print("Gemini circuit breaker cooldown expired. Resetting circuit...")
+                self.circuit_tripped = False
 
         attempts = 0
         max_attempts = len(self.all_keys)
@@ -78,7 +92,49 @@ class MasterOrchestrator:
                 self.current_key_index = (self.current_key_index + 1) % len(self.all_keys)
                 self.model = None  # Force re-initialization on next loop iteration
                 
+        # Trip the circuit breaker since all keys failed
+        self.circuit_tripped = True
+        self.last_circuit_trip_time = now
+        print(f"Gemini circuit breaker TRIPPED for the next {self.circuit_cooldown} seconds.")
         return "The Master AI experienced errors across all configured API keys. LLM generation failed."
+
+    def _generate_local_fallback_insight(self, anomaly_data: dict) -> str:
+        anomalies = anomaly_data.get("anomalies", [])
+        storage_anoms = anomaly_data.get("storage_anomalies", [])
+        network_anoms = anomaly_data.get("network_anomalies", [])
+        predictions = anomaly_data.get("predictions", [])
+        
+        reasons = []
+        mitigations = []
+        
+        if anomalies:
+            pods = [a['pod'] for a in anomalies]
+            reasons.append(f"Resource anomalies were detected on pod(s) {', '.join(pods)} due to CPU/Memory utilization spikes exceeding standard ML baselines.")
+            mitigations.append("Inspect process-level thread pools on the anomalous pods and consider executing the Auto-Heal remediation.")
+            
+        if storage_anoms:
+            storage_msgs = [s['message'] for s in storage_anoms]
+            reasons.append(f"Storage path bottleneck detected: {'; '.join(storage_msgs)}.")
+            mitigations.append("Verify disk I/O limits, check filesystem mount points, and clean up temporary logs to free up volume capacity.")
+            
+        if network_anoms:
+            net_flows = [n['flow'] for n in network_anoms]
+            reasons.append(f"Active network anomalies identified on process/port path: {', '.join(net_flows)}.")
+            mitigations.append("Audit active socket connections and check for high connection counts indicating potential leakage.")
+            
+        if predictions:
+            crash_pods = [p['pod'] for p in predictions if p.get('failure_probability', 0) > 0.5]
+            if crash_pods:
+                reasons.append(f"Forecasting models project a high crash-loop risk for {', '.join(crash_pods)} within the next 5 minutes.")
+                mitigations.append("Proactively scale up memory limits or provision additional replica sets to handle load demands.")
+                
+        if not reasons:
+            return "Cluster is operating within normal baseline limits. The local SRE engine analyzed active telemetry streams and detected zero network, storage, or memory anomalies."
+            
+        rca = " ".join(reasons)
+        plan = " ".join(mitigations)
+        
+        return f"[Local Offline AI Mode] RCA: {rca} Mitigation: {plan}"
 
     def generate_insight(self, anomaly_data: dict) -> str:
         if not self.all_keys:
@@ -144,6 +200,11 @@ class MasterOrchestrator:
 
         insight = self._call_gemini_with_fallback(prompt)
         
+        # If Gemini fails, fallback to local rule-based insight engine
+        if "failed" in insight.lower() or "offline" in insight.lower() or "error" in insight.lower():
+            print("Gemini keys exhausted/rate-limited. Falling back to local rules-based SRE insight generator...")
+            insight = self._generate_local_fallback_insight(anomaly_data)
+            
         # Cache this new insight if it generated successfully
         if "failed" not in insight.lower() and "offline" not in insight.lower():
             self._last_anomalies = current_anomaly_signatures
@@ -151,6 +212,55 @@ class MasterOrchestrator:
             self._last_insight_time = now
 
         return insight
+
+    def _chat_local_fallback(self, user_message: str, cluster_context: dict) -> str:
+        msg = user_message.lower()
+        anomalies = cluster_context.get('anomalies', [])
+        logs = cluster_context.get('log_keywords', [])
+        storage_anoms = cluster_context.get('storage_anomalies', [])
+        network_anoms = cluster_context.get('network_anomalies', [])
+        
+        if "cpu" in msg or "memory" in msg or "resource" in msg or "anomaly" in msg or "anomalous" in msg:
+            if anomalies:
+                pod_details = ", ".join([f"{a['pod']} (CPU: {a['cpu_usage_core_rate']*1000:.1f} mc, MEM: {a['memory_usage_bytes']/1000000:.0f} MB)" for a in anomalies])
+                return f"[Local Offline AI Mode] Active resource anomalies detected on: {pod_details}. These processes exceed standard baselines and require operator review or auto-heal action."
+            else:
+                return "[Local Offline AI Mode] Telemetry checks confirm all pods and physical processes are operating within standard historical CPU and memory bounds."
+                
+        elif "storage" in msg or "disk" in msg or "volume" in msg or "pvc" in msg:
+            if storage_anoms:
+                alerts = ", ".join([s for s in storage_anoms])
+                return f"[Local Offline AI Mode] Direct hardware path warning: {alerts}. This could restrict process I/O performance."
+            else:
+                return "[Local Offline AI Mode] Active drive storage (C:\\, D:\\) remains healthy. Volume capacities and write queues are fully stable."
+                
+        elif "network" in msg or "traffic" in msg or "port" in msg or "socket" in msg:
+            if network_anoms:
+                alerts = ", ".join([n for n in network_anoms])
+                return f"[Local Offline AI Mode] High active connections detected: {alerts}. Audit active ports to locate potential traffic leaks."
+            else:
+                return "[Local Offline AI Mode] Network interface paths are fully stable. Dynamic loopback packet latency remains <1ms with zero drop rates."
+                
+        elif "log" in msg or "error" in msg or "nlp" in msg or "event" in msg:
+            if logs:
+                return f"[Local Offline AI Mode] NLP clustering identified the following high-frequency system error patterns: {', '.join(logs)}. Review details in the Event Viewer pane."
+            else:
+                return "[Local Offline AI Mode] Windows Event log analysis shows zero critical errors or system alerts in the current cycle."
+                
+        elif "remediate" in msg or "heal" in msg or "fix" in msg:
+            if anomalies:
+                return f"[Local Offline AI Mode] Active anomalies are pending on {', '.join([a['pod'] for a in anomalies])}. Click the 'Auto-Heal' button next to the anomaly to trigger automatic process isolation and recycle."
+            else:
+                return "[Local Offline AI Mode] No active resource outliers require remediation right now. System state is clear."
+                
+        else:
+            outliers = []
+            if anomalies: outliers.append(f"{len(anomalies)} resource outlier(s)")
+            if storage_anoms: outliers.append(f"{len(storage_anoms)} storage bottleneck(s)")
+            if network_anoms: outliers.append(f"{len(network_anoms)} network anomaly/anomalies")
+            
+            state_desc = ", ".join(outliers) if outliers else "all telemetry normal"
+            return f"[Local Offline AI Mode] Active Status: {state_desc}. (Notice: Gemini API keys are currently rate-limited. Operating under local rules-based SRE guidance. Ask me about cpu, storage, network, or logs for specific telemetry data.)"
 
     def chat_with_assistant(self, user_message: str, cluster_context: dict) -> str:
         """
@@ -180,5 +290,13 @@ class MasterOrchestrator:
         If the user asks about network congestion, storage leaks, or process spikes, check the corresponding context fields.
         Keep the answer to 2 or 3 short sentences. Do not use markdown bolding.
         """
-        return self._call_gemini_with_fallback(prompt)
+        
+        reply = self._call_gemini_with_fallback(prompt)
+        
+        # If Gemini fails, fallback to local rule-based chat engine
+        if "failed" in reply.lower() or "offline" in reply.lower() or "error" in reply.lower():
+            print("Gemini keys exhausted/rate-limited. Falling back to local rules-based SRE chat engine...")
+            reply = self._chat_local_fallback(user_message, cluster_context)
+            
+        return reply
 

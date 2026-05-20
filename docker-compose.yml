@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: kube-ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PORT=8000
+    restart: unless-stopped
+    
+    # =========================================================================
+    # SRE TELEMETRY FLAGS FOR PHYSICAL MACHINE MONITORING:
+    # Remove the comments below to let Docker bypass standard namespaces 
+    # and monitor your actual physical host workstation!
+    # (Note: network_mode: host is fully supported on Linux and WSL2 backends)
+    # =========================================================================
+    pid: "host"
+    # network_mode: "host"
+
+
+
+  frontend:
+    build: ./frontend
+    container_name: kube-ai-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

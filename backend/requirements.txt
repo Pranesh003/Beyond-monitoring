@@ -7,3 +7,6 @@ networkx
 google-generativeai
 python-dotenv
 psutil
+kubernetes
+requests
+numpy

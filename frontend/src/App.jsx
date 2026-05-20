@@ -171,11 +171,68 @@ export default function App() {
   const statusOk    = anomaliesCount === 0;
 
   const cyStyles = [
-    { selector: 'node',               style: { 'background-color': '#3b82f6', 'label': 'data(label)', 'color': '#cbd5e1', 'font-size': '11px', 'font-weight': '600', 'text-margin-y': -8, 'text-valign': 'top', 'width': 36, 'height': 36 } },
-    { selector: 'edge',               style: { 'width': 2, 'line-color': '#475569', 'target-arrow-color': '#475569', 'target-arrow-shape': 'triangle', 'curve-style': 'bezier' } },
-    { selector: 'node[type="database"]', style: { 'background-color': '#8b5cf6', 'shape': 'barrel', 'width': 38, 'height': 38 } },
-    { selector: 'node[type="ingress"]',  style: { 'background-color': '#10b981', 'shape': 'diamond', 'width': 38, 'height': 38 } },
-    { selector: 'node[type="anomaly"]',  style: { 'background-color': '#ef4444', 'border-width': 2, 'border-color': '#fff', 'width': 40, 'height': 40 } },
+    { 
+      selector: 'node',               
+      style: { 
+        'background-color': '#3b82f6', 
+        'label': 'data(label)', 
+        'color': '#cbd5e1', 
+        'font-size': '11px', 
+        'font-weight': '600', 
+        'text-valign': 'bottom', 
+        'text-margin-y': 8,
+        'width': 38, 
+        'height': 38,
+        'text-background-opacity': 0.8,
+        'text-background-color': '#060d1a',
+        'text-background-padding': '4px 6px',
+        'text-background-shape': 'roundrectangle',
+        'border-width': 2,
+        'border-color': '#1e293b'
+      } 
+    },
+    { 
+      selector: 'edge',               
+      style: { 
+        'width': 2.5, 
+        'line-color': '#475569', 
+        'target-arrow-color': '#475569', 
+        'target-arrow-shape': 'triangle', 
+        'curve-style': 'bezier',
+        'arrow-scale': 1.3
+      } 
+    },
+    { 
+      selector: 'node[type="database"]', 
+      style: { 
+        'background-color': '#8b5cf6', 
+        'shape': 'barrel', 
+        'width': 40, 
+        'height': 40 
+      } 
+    },
+    { 
+      selector: 'node[type="ingress"]',  
+      style: { 
+        'background-color': '#10b981', 
+        'shape': 'diamond', 
+        'width': 42, 
+        'height': 42,
+        'border-color': '#047857'
+      } 
+    },
+    { 
+      selector: 'node[type="anomaly"]',  
+      style: { 
+        'background-color': '#ef4444', 
+        'border-width': 2, 
+        'border-color': '#fca5a5', 
+        'width': 44, 
+        'height': 44,
+        'text-background-color': '#450a0a',
+        'text-background-opacity': 0.9
+      } 
+    },
   ];
 
   return (
@@ -341,9 +398,20 @@ export default function App() {
             <div className="topo-area">
               {topology.length > 0
                 ? <CytoscapeComponent
+                    key={topology.map(el => el.data.id || (el.data.source + '-' + el.data.target)).join(',')}
                     elements={topology}
                     style={{ width: '100%', height: '100%' }}
-                    layout={{ name: 'cose', animate: true, nodeDimensionsIncludeLabels: true }}
+                    layout={{
+                      name: 'concentric',
+                      concentric: function(node) {
+                        return node.data('type') === 'ingress' ? 2 : 1;
+                      },
+                      levelWidth: function(nodes) {
+                        return 1;
+                      },
+                      padding: 50,
+                      animate: false
+                    }}
                     stylesheet={cyStyles}
                     userZoomingEnabled={true}
                   />
