@@ -97,10 +97,11 @@ graph TD
     *   It combines these into a list of candidate keys: `keys = [primary] + backup_keys`.
     *   All LLM calls (`generate_insight` and `chat_with_assistant`) are wrapped inside a retry loop (`_call_gemini_with_fallback`).
     *   If a request encounters a rate limit (`429`), quota boundary, or key invalidation error, the runner:
-        1. Catches the exception safely.
-        2. Steps to the next key index: `(current_index + 1) % len(all_keys)`.
-        3. Invokes `genai.configure(api_key=new_key)` and recreates the `gemini-2.5-flash` model.
-        4. Retries the generation loop up to $N$ times (where $N$ is the number of keys).
+        1. Catches the exception safely, parsing the error message to explicitly identify rate limits or quota boundaries (`429` / `ResourceExhausted`).
+        2. Logs a highly descriptive `[RATE LIMIT / QUOTA EXHAUSTED]` warning with the failure details.
+        3. Dynamically steps to the next configured backup API key index: `(current_index + 1) % len(all_keys)`.
+        4. Invokes `genai.configure(api_key=new_key)` and recreates the `gemini-2.5-flash` model instance.
+        5. Retries the generation loop up to $N$ times (where $N$ is the number of keys) with zero downtime.
 *   **Local Offline Rule-Based SRE Engine**:
     To prevent service degradation during complete LLM outages or rate-limits, it features a fallback SRE engine:
     *   **Fallback Insights**: Automatically generates structured Root Cause Analysis (RCA) and mitigation paths by analyzing current telemetry context (CPU, memory, storage status, Loki logs).

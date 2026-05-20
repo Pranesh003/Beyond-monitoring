@@ -153,7 +153,8 @@ def chat_endpoint(request: ChatRequest):
         "anomalies": anom_result.get("anomalies", []),
         "log_keywords": log_result.get("nlp_extracted_keywords", []),
         "storage_anomalies": [s["message"] for s in storage_anoms],
-        "network_anomalies": [n["message"] for n in network_anoms]
+        "network_anomalies": [n["message"] for n in network_anoms],
+        "total_pods_analyzed": anom_result.get("total_pods_analyzed", 0)
     }
     
     answer = master_orchestrator.chat_with_assistant(request.message, context)

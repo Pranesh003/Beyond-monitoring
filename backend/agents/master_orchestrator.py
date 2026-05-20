@@ -86,7 +86,12 @@ class MasterOrchestrator:
                 response = self.model.generate_content(prompt)
                 return response.text
             except Exception as e:
-                print(f"Error with API key ending in {masked_key}: {e}")
+                err_msg = str(e)
+                if "429" in err_msg or "ResourceExhausted" in err_msg or "quota" in err_msg.lower() or "rate limit" in err_msg.lower():
+                    print(f"[RATE LIMIT / QUOTA EXHAUSTED] API Key ending in {masked_key} hit quota/rate-limits. Details: {err_msg}")
+                    print("Dynamically switching to the next configured backup API key...")
+                else:
+                    print(f"Error with API key ending in {masked_key}: {e}")
                 # Rotate to the next key
                 attempts += 1
                 self.current_key_index = (self.current_key_index + 1) % len(self.all_keys)
@@ -219,8 +224,15 @@ class MasterOrchestrator:
         logs = cluster_context.get('log_keywords', [])
         storage_anoms = cluster_context.get('storage_anomalies', [])
         network_anoms = cluster_context.get('network_anomalies', [])
+        total_pods = cluster_context.get('total_pods_analyzed', 0)
         
-        if "cpu" in msg or "memory" in msg or "resource" in msg or "anomaly" in msg or "anomalous" in msg:
+        if "how many" in msg or "pod count" in msg or "number of pods" in msg or "pods running" in msg or "active pods" in msg:
+            if total_pods > 0:
+                return f"[Local Offline AI Mode] There are currently {total_pods} active pods running and monitored in the cluster."
+            else:
+                return "[Local Offline AI Mode] There are active pods running on the cluster, but the precise telemetry is currently establishing connection."
+                
+        elif "cpu" in msg or "memory" in msg or "resource" in msg or "anomaly" in msg or "anomalous" in msg:
             if anomalies:
                 pod_details = ", ".join([f"{a['pod']} (CPU: {a['cpu_usage_core_rate']*1000:.1f} mc, MEM: {a['memory_usage_bytes']/1000000:.0f} MB)" for a in anomalies])
                 return f"[Local Offline AI Mode] Active resource anomalies detected on: {pod_details}. These processes exceed standard baselines and require operator review or auto-heal action."
