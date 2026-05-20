@@ -52,7 +52,7 @@ export function RollingLineChart({ title, timeseries, metricKey, unit, formatVal
         borderWidth: 1.8,
         pointRadius: 0,
         tension: 0.4,
-        fill: false,
+        fill: true,
       };
     });
 
