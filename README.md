@@ -1,3 +1,7 @@
+
+
+https://github.com/user-attachments/assets/883ee474-080a-40ce-a049-1f40b8205450
+
 # Beyond Monitoring: Autonomous Agentic AI Kubernetes Intelligence Platform
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
